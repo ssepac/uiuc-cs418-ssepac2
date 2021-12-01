@@ -4,6 +4,8 @@
 <script src="unit teapot.js"></script>
 
 <script src="gl-matrix-min.js"></script>
+<!-- 
+<script src="https://greggman.github.io/webgl-lint/webgl-lint.js" crossorigin></script> -->
 
 <script>
 var gl;
@@ -17,6 +19,7 @@ var sampler2_uniform;
 var teapot_vao;
 var vert_pos_attr;
 var vert_normal_attr;
+var vert_texcoord_attr;
 
 //
 // a default vertex shader implemented as a backquoted string variable
@@ -26,7 +29,6 @@ var vs = `#version 300 es
 
 in vec3 aVertexPosition;
 in vec3 aVertexNormal;
-in vec2 aTexCoord;
 
 uniform mat4 uModelViewMatrix;
 uniform mat3 uNormalMatrix;
@@ -34,10 +36,21 @@ uniform mat4 uProjectionMatrix;
 
 out vec2 vTexCoord;
 out vec3 vNormal;
+out vec3 vModelCoords;
+out vec3 n,l,v;
+
+out vec4 vViewingNormals;
 
 void main() {
-  vTexCoord.s = aVertexPosition.x + 0.5;
-  vTexCoord.t = aVertexPosition.y + 0.5;
+  vModelCoords = aVertexPosition;
+  vViewingNormals = uModelViewMatrix*vec4(aVertexNormal, 1.0);
+
+  vec3 normalInterp = vec3(uNormalMatrix * aVertexNormal);
+
+  n = normalize(normalInterp);
+  l = normalize(vec3(-1.0, 1.0, -0.8));
+  vec4 p = uModelViewMatrix*vec4(aVertexPosition, 1.0);
+  v = normalize(-p.xyz);
 
   gl_Position = uProjectionMatrix*uModelViewMatrix*vec4(aVertexPosition, 1.0);
 }
@@ -50,18 +63,37 @@ void main() {
 var fs = `#version 300 es
 
 precision mediump float;
-    
-in vec3 vNormal;
-in vec2 vTexCoord;
+
+in vec3 n,l,v;   
+in vec4 vViewingNormals;
+in vec3 vModelCoords;
 uniform sampler2D uSampler;
 uniform sampler2D uSampler2;
 
 out vec4 outColor;
     
 void main() {
-  vec3 illinois = vec3(texture(uSampler, vTexCoord));
-  vec3 stadium = vec3(texture(uSampler2, vTexCoord));
-  vec3 c = 0.5*illinois + 0.5*stadium;
+
+  float stadium_arg1 = atan(vModelCoords.x, vModelCoords.z);
+  float stadium_arg2 = 2.0 * 3.1415926538;
+  float s = stadium_arg1 / stadium_arg2;
+
+  vec2 vIllinois;
+  vIllinois.s = 0.25 + s; //s moves in traditional x direction
+  vIllinois.t = 0.5 + vModelCoords.y * 2.0; //t moves in traditional y direction
+
+  vec3 illinois = vec3(texture(uSampler, vIllinois));
+  vec3 stadium = vec3(texture(uSampler2, vec2((vViewingNormals.x+1.0)/2.0, (vViewingNormals.y+1.0)/2.0)));
+
+  //Next code block sets diffuse and specular lighting
+  vec3 newN = normalize(vViewingNormals.xyz);
+  vec3 vWhite = vec3(1.0, 1.0, 1.0);
+  vec3 Ld = vWhite * max(dot(newN, l), 0.0); //diffuse lighting
+  vec3 r = reflect(-l, newN);
+  vec3 Ls = vWhite*pow(max(dot(v,r), 0.0), 10.0); //specular lighting
+  vec3 L_ambient = vec3(-0.6, -0.6, -0.6);
+
+  vec3 c = (0.5*illinois + 0.5*stadium + (Ls + Ld)) + L_ambient;
 
   outColor = vec4(c,1.0);
 }
@@ -153,7 +185,7 @@ function initwebgl() {
                 gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 255, 255]));
 
   var image = new Image();
-  image.src = "illinois512.png";
+  image.src = "illinois512noborder.png";
 
   image.addEventListener("load", function() {
     gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -182,6 +214,7 @@ function initwebgl() {
 
   var image2 = new Image();
   image2.src = "stadium sphere.jpg";
+
 
   image2.addEventListener("load", function() {
     gl.bindTexture(gl.TEXTURE_2D, texture2);
@@ -234,6 +267,7 @@ function loadshaders(vertexShaderSource,fragmentShaderSource) {
   projection_uniform = gl.getUniformLocation(shaderProgram, "uProjectionMatrix"); 
   sampler_uniform = gl.getUniformLocation(shaderProgram, "uSampler"); 
   sampler2_uniform = gl.getUniformLocation(shaderProgram, "uSampler2"); 
+  vert_texcoord_attr = gl.getAttribLocation(shaderProgram, "aTexCoord");
 }
 
 //
