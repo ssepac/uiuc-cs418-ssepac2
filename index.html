@@ -37,12 +37,21 @@ uniform mat4 uProjectionMatrix;
 out vec2 vTexCoord;
 out vec3 vNormal;
 out vec3 vModelCoords;
+out vec3 n,l,v;
 
-out vec4 vPos;
+out vec4 vViewingNormals;
 
 void main() {
   vModelCoords = aVertexPosition;
-  vPos = uModelViewMatrix*vec4(aVertexNormal, 1.0);
+  vViewingNormals = uModelViewMatrix*vec4(aVertexNormal, 1.0);
+
+  vec3 normalInterp = vec3(uNormalMatrix * aVertexNormal);
+
+  n = normalize(normalInterp);
+  l = normalize(vec3(-1.0, 1.0, -0.8));
+  vec4 p = uModelViewMatrix*vec4(aVertexPosition, 1.0);
+  v = normalize(-p.xyz);
+
   gl_Position = uProjectionMatrix*uModelViewMatrix*vec4(aVertexPosition, 1.0);
 }
 `;
@@ -54,8 +63,9 @@ void main() {
 var fs = `#version 300 es
 
 precision mediump float;
-    
-in vec4 vPos;
+
+in vec3 n,l,v;   
+in vec4 vViewingNormals;
 in vec3 vModelCoords;
 uniform sampler2D uSampler;
 uniform sampler2D uSampler2;
@@ -64,18 +74,26 @@ out vec4 outColor;
     
 void main() {
 
-  float arg1 = atan(vModelCoords.x, vModelCoords.z);
-  float arg2 = 2.0 * 3.1415926538;
-  float s = arg1 / arg2;
+  float stadium_arg1 = atan(vModelCoords.x, vModelCoords.z);
+  float stadium_arg2 = 2.0 * 3.1415926538;
+  float s = stadium_arg1 / stadium_arg2;
 
   vec2 vIllinois;
-  vIllinois.s = 0.75 + s; //s moves in traditional x direction
+  vIllinois.s = 0.25 + s; //s moves in traditional x direction
   vIllinois.t = 0.5 + vModelCoords.y * 2.0; //t moves in traditional y direction
 
   vec3 illinois = vec3(texture(uSampler, vIllinois));
-  vec3 stadium = vec3(texture(uSampler2, vec2((vPos.x+1.0)/2.0, (vPos.y+1.0)/2.0)));
-  //TODO: CHANGE THIS BACK AS NECESSARY vec3 c = 0.5*illinois + 0.5*stadium;
-  vec3 c = 0.5*illinois + 0.5*stadium;
+  vec3 stadium = vec3(texture(uSampler2, vec2((vViewingNormals.x+1.0)/2.0, (vViewingNormals.y+1.0)/2.0)));
+
+  //Next code block sets diffuse and specular lighting
+  vec3 newN = normalize(vViewingNormals.xyz);
+  vec3 vWhite = vec3(1.0, 1.0, 1.0);
+  vec3 Ld = vWhite * max(dot(newN, l), 0.0); //diffuse lighting
+  vec3 r = reflect(-l, newN);
+  vec3 Ls = vWhite*pow(max(dot(v,r), 0.0), 10.0); //specular lighting
+  vec3 L_ambient = vec3(-0.6, -0.6, -0.6);
+
+  vec3 c = (0.5*illinois + 0.5*stadium + (Ls + Ld)) + L_ambient;
 
   outColor = vec4(c,1.0);
 }
