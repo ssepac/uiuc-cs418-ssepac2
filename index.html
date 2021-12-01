@@ -4,6 +4,8 @@
 <script src="unit teapot.js"></script>
 
 <script src="gl-matrix-min.js"></script>
+<!-- 
+<script src="https://greggman.github.io/webgl-lint/webgl-lint.js" crossorigin></script> -->
 
 <script>
 var gl;
@@ -17,6 +19,7 @@ var sampler2_uniform;
 var teapot_vao;
 var vert_pos_attr;
 var vert_normal_attr;
+var vert_texcoord_attr;
 
 //
 // a default vertex shader implemented as a backquoted string variable
@@ -26,7 +29,6 @@ var vs = `#version 300 es
 
 in vec3 aVertexPosition;
 in vec3 aVertexNormal;
-in vec2 aTexCoord;
 
 uniform mat4 uModelViewMatrix;
 uniform mat3 uNormalMatrix;
@@ -34,11 +36,12 @@ uniform mat4 uProjectionMatrix;
 
 out vec2 vTexCoord;
 out vec3 vNormal;
+out vec3 vModelCoords;
+
+out vec3 tex;
 
 void main() {
-  vTexCoord.s = aVertexPosition.x + 0.5;
-  vTexCoord.t = aVertexPosition.y + 0.5;
-
+  vModelCoords = aVertexPosition;
   gl_Position = uProjectionMatrix*uModelViewMatrix*vec4(aVertexPosition, 1.0);
 }
 `;
@@ -51,17 +54,26 @@ var fs = `#version 300 es
 
 precision mediump float;
     
-in vec3 vNormal;
-in vec2 vTexCoord;
+in vec3 vModelCoords;
 uniform sampler2D uSampler;
 uniform sampler2D uSampler2;
 
 out vec4 outColor;
     
 void main() {
-  vec3 illinois = vec3(texture(uSampler, vTexCoord));
-  vec3 stadium = vec3(texture(uSampler2, vTexCoord));
-  vec3 c = 0.5*illinois + 0.5*stadium;
+
+  float arg1 = atan(vModelCoords.x, vModelCoords.z);
+  float arg2 = 2.0 * 3.1415926538;
+  float s = arg1 / arg2;
+
+  vec2 vIllinois;
+  vIllinois.s = 0.75 + (s); //s moves in traditional x direction
+  vIllinois.t = 0.5 + vModelCoords.y * 2.0; //t moves in traditional y direction
+
+  vec3 illinois = vec3(texture(uSampler, vIllinois));
+  //vec3 stadium = vec3(texture(uSampler2, vec2(vModelCoords.x, vModelCoords.y)));
+  //TODO: CHANGE THIS BACK AS NECESSARY vec3 c = 0.5*illinois + 0.5*stadium;
+  vec3 c = illinois;
 
   outColor = vec4(c,1.0);
 }
@@ -183,6 +195,7 @@ function initwebgl() {
   var image2 = new Image();
   image2.src = "stadium sphere.jpg";
 
+
   image2.addEventListener("load", function() {
     gl.bindTexture(gl.TEXTURE_2D, texture2);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 256, 256, 0, gl.RGBA, gl.UNSIGNED_BYTE, image2);
@@ -234,6 +247,7 @@ function loadshaders(vertexShaderSource,fragmentShaderSource) {
   projection_uniform = gl.getUniformLocation(shaderProgram, "uProjectionMatrix"); 
   sampler_uniform = gl.getUniformLocation(shaderProgram, "uSampler"); 
   sampler2_uniform = gl.getUniformLocation(shaderProgram, "uSampler2"); 
+  vert_texcoord_attr = gl.getAttribLocation(shaderProgram, "aTexCoord");
 }
 
 //
