@@ -38,10 +38,11 @@ out vec2 vTexCoord;
 out vec3 vNormal;
 out vec3 vModelCoords;
 
-out vec3 tex;
+out vec4 vPos;
 
 void main() {
   vModelCoords = aVertexPosition;
+  vPos = uModelViewMatrix*vec4(aVertexNormal, 1.0);
   gl_Position = uProjectionMatrix*uModelViewMatrix*vec4(aVertexPosition, 1.0);
 }
 `;
@@ -54,6 +55,7 @@ var fs = `#version 300 es
 
 precision mediump float;
     
+in vec4 vPos;
 in vec3 vModelCoords;
 uniform sampler2D uSampler;
 uniform sampler2D uSampler2;
@@ -67,13 +69,13 @@ void main() {
   float s = arg1 / arg2;
 
   vec2 vIllinois;
-  vIllinois.s = 0.75 + (s); //s moves in traditional x direction
+  vIllinois.s = 0.75 + s; //s moves in traditional x direction
   vIllinois.t = 0.5 + vModelCoords.y * 2.0; //t moves in traditional y direction
 
   vec3 illinois = vec3(texture(uSampler, vIllinois));
-  //vec3 stadium = vec3(texture(uSampler2, vec2(vModelCoords.x, vModelCoords.y)));
+  vec3 stadium = vec3(texture(uSampler2, vec2((vPos.x+1.0)/2.0, (vPos.y+1.0)/2.0)));
   //TODO: CHANGE THIS BACK AS NECESSARY vec3 c = 0.5*illinois + 0.5*stadium;
-  vec3 c = illinois;
+  vec3 c = 0.5*illinois + 0.5*stadium;
 
   outColor = vec4(c,1.0);
 }
@@ -165,7 +167,7 @@ function initwebgl() {
                 gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 255, 255]));
 
   var image = new Image();
-  image.src = "illinois512.png";
+  image.src = "illinois512noborder.png";
 
   image.addEventListener("load", function() {
     gl.bindTexture(gl.TEXTURE_2D, texture);
